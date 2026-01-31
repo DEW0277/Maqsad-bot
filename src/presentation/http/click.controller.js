@@ -12,6 +12,7 @@ exports.pay = async (req, res) => {
     `&merchant_trans_id=${userId}`;
 
   res.redirect(clickUrl);
+  
 };
 
 exports.webhook = async (req, res) => {
