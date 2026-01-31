@@ -142,6 +142,8 @@ module.exports = (bot) => {
   const sendReviewMessage = async (bot, chatId, p) => {
       const moduleTitle = p.module ? p.module.title : "Unknown Module";
       const userName = p.user ? (p.user.firstName || "User") : "User";
+      const userUsername = p.user && p.user.username ? ` (@${p.user.username})` : "";
+
       
       let statusIcon = '⏳';
       if (p.status === 'approved') statusIcon = '✅';
@@ -153,7 +155,7 @@ module.exports = (bot) => {
 
       const message = `
 ${statusIcon} <b>Status: ${p.status.toUpperCase()}</b>
-👤 <b>Student:</b> ${userName}
+👤 <b>Student:</b> ${userName}${userUsername}
 📦 <b>Modul:</b> ${moduleTitle}
 💬 <b>Fikr:</b> ${p.userFeedback}
 🤖 <b>AI:</b> ${p.aiFeedback}${extraInfo}
@@ -163,6 +165,50 @@ ${statusIcon} <b>Status: ${p.status.toUpperCase()}</b>
       `;
       await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
   };
+
+  // ✅ Approve Command Handler
+  bot.onText(/\/approve_(\w+)/, async (msg, match) => {
+      if (!userService.isAdmin(msg.from.id)) return;
+      const progressId = match[1];
+      const chatId = msg.chat.id;
+
+      try {
+          await progressService.approveProgress(progressId, "Admin approved manually");
+          
+          const progress = await progressRepo.getById(progressId);
+          if (progress && progress.user) {
+              await bot.sendMessage(progress.user.telegramId, `🎉 TABRIKLAYMIZ! Fikringiz qabul qilindi.\n\nKeyingi modul ochildi!`);
+          }
+
+          // Update Admin Message to show it's done (Optional: try to edit if we can find message id, but for regex command it's hard to reference the original message listing unless we passed it. 
+          // But here acts as a command. So just confirm.)
+          await bot.sendMessage(chatId, `✅ Tasdiqlandi! User xabardor qilindi.`);
+          
+      } catch (e) {
+          console.error(e);
+          await bot.sendMessage(chatId, `❌ Xatolik: ${e.message}`);
+      }
+  });
+
+  // ❌ Reject Command Handler
+  bot.onText(/\/reject_(\w+)/, async (msg, match) => {
+      if (!userService.isAdmin(msg.from.id)) return;
+      const progressId = match[1];
+      const chatId = msg.chat.id;
+
+      // Start Rejection Flow
+      await sessionRepo.setSession(`admin_menu:${chatId}`, { 
+          step: STEPS.WAITING_FOR_REJECTION_REASON, 
+          targetProgressId: progressId
+      });
+
+      await bot.sendMessage(chatId, `✍️ Rad etish sababini yozing:`, {
+          reply_markup: {
+              keyboard: [['⬅️ Orqaga']],
+              resize_keyboard: true
+          }
+      });
+  });
 
   // 🎁 Give Premium
   bot.onText(/\/give_premium (\d+)/, async (msg, match) => {
