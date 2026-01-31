@@ -33,6 +33,16 @@ exports.getLastCompletedModuleOrder = async (userId) => {
   return completedProgress[0].module.order;
 };
 
+exports.update = async (id, data) => {
+  return ProgressModel.findByIdAndUpdate(id, { $set: data }, { new: true });
+};
+
+exports.getReviewsByStatus = async (status) => {
+  return ProgressModel.find({ status })
+    .populate('user', 'firstName lastName telegramId username')
+    .populate('module', 'title order');
+};
+
 exports.getById = async (id) => {
     return ProgressModel.findById(id).populate('user').populate('module');
 }

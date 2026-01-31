@@ -15,6 +15,7 @@ const STEPS = {
   SEND_CONTENT: 'SEND_CONTENT',
   WAITING_FOR_REPLY: 'WAITING_FOR_REPLY',
   WAITING_FOR_REJECTION_REASON: 'WAITING_FOR_REJECTION_REASON',
+  REVIEWS_MENU: 'REVIEWS_MENU',
 };
 
 module.exports = (bot) => {
@@ -110,7 +111,7 @@ module.exports = (bot) => {
     await sessionRepo.setSession(`admin_menu:${chatId}`, { step: STEPS.MAIN });
     bot.sendMessage(chatId, '🧑‍💼 Admin Panel:', {
       reply_markup: {
-        keyboard: [['➕ Modul qo‘shish'], ['➕ Dars qo‘shish'], ['⬅️ Orqaga']],
+        keyboard: [['📝 Fikrlar'], ['➕ Modul qo‘shish'], ['➕ Dars qo‘shish'], ['⬅️ Orqaga']],
         resize_keyboard: true,
       },
     });
@@ -124,31 +125,44 @@ module.exports = (bot) => {
   });
 
   // 📋 Pending Reviews
+  // 📋 Pending Reviews (Legacy command, keeping it but logic moved to UI)
   bot.onText(/\/reviews/, async (msg) => {
       if (!userService.isAdmin(msg.from.id)) return;
-      const pending = await progressRepo.getPendingApprovals();
+      const pending = await progressRepo.getReviewsByStatus('pending_approval');
       
       if (!pending.length) {
           return bot.sendMessage(msg.chat.id, '✅ Tasdiqlash uchun yangi fikrlar yo‘q.');
       }
 
       for (const p of pending) {
-          // Check if module is populated
-          const moduleTitle = p.module ? p.module.title : "Unknown Module";
-          const userName = p.user ? (p.user.firstName || "User") : "User";
+          sendReviewMessage(bot, msg.chat.id, p);
+      }
+  });
 
-          const message = `
+  const sendReviewMessage = async (bot, chatId, p) => {
+      const moduleTitle = p.module ? p.module.title : "Unknown Module";
+      const userName = p.user ? (p.user.firstName || "User") : "User";
+      
+      let statusIcon = '⏳';
+      if (p.status === 'approved') statusIcon = '✅';
+      if (p.status === 'rejected') statusIcon = '❌';
+
+      let extraInfo = '';
+      if (p.status === 'approved') extraInfo = `\n⭐️ Baho: ${p.rating || 'Yo‘q'}`;
+      if (p.status === 'rejected') extraInfo = `\n🚫 Sabab: ${p.rejectionReason || 'Yo‘q'}`;
+
+      const message = `
+${statusIcon} <b>Status: ${p.status.toUpperCase()}</b>
 👤 <b>Student:</b> ${userName}
 📦 <b>Modul:</b> ${moduleTitle}
 💬 <b>Fikr:</b> ${p.userFeedback}
-🤖 <b>AI:</b> ${p.aiFeedback}
+🤖 <b>AI:</b> ${p.aiFeedback}${extraInfo}
 
 ✅ Tasdiqlash: /approve_${p._id}
-❌ Rad etish: /reject_${p._id} (Hali ishlamaydi)
-          `;
-          await bot.sendMessage(msg.chat.id, message, { parse_mode: 'HTML' });
-      }
-  });
+❌ Rad etish: /reject_${p._id}
+      `;
+      await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+  };
 
   // 🎁 Give Premium
   bot.onText(/\/give_premium (\d+)/, async (msg, match) => {
@@ -241,8 +255,47 @@ module.exports = (bot) => {
               });
         }
         
-        // Fallback
+        // Fallback or Reviews Menu Back
+        if (step === STEPS.REVIEWS_MENU) {
+            return showAdminMenu(chatId);
+        }
+
         return showAdminMenu(chatId);
+    }
+
+    // 📝 Reviews Menu Handler
+    if (text === '📝 Fikrlar') {
+        session.step = STEPS.REVIEWS_MENU;
+        await sessionRepo.setSession(sessionKey, session);
+
+        return bot.sendMessage(chatId, 'Fikrlar bo‘limi:', {
+            reply_markup: {
+                keyboard: [['⏳ Kutilmoqda'], ['✅ Tasdiqlangan'], ['❌ Rad etilgan'], ['⬅️ Orqaga']],
+                resize_keyboard: true,
+            },
+        });
+    }
+
+    if (session.step === STEPS.REVIEWS_MENU) {
+        let status = null;
+        if (text === '⏳ Kutilmoqda') status = 'pending_approval';
+        if (text === '✅ Tasdiqlangan') status = 'approved';
+        if (text === '❌ Rad etilgan') status = 'rejected';
+
+        if (status) {
+            const reviews = await progressRepo.getReviewsByStatus(status);
+            if (!reviews.length) {
+                return bot.sendMessage(chatId, '📭 Bu bo‘limda fikrlar yo‘q.');
+            }
+            
+             // Limit to last 10 for readability if there are many
+            const limitedReviews = reviews.slice(-10); 
+
+            for (const p of limitedReviews) {
+                await sendReviewMessage(bot, chatId, p);
+            }
+            return;
+        }
     }
 
 
