@@ -132,8 +132,9 @@ module.exports = (bot) => {
 
     // 💎 Premium kurs bosildi
     if (text === '💎 Premium kurs') {
-      // ❌ Agar premium bo‘lmasa — to‘lov chiqaramiz
-      if (!user.isPremium) {
+      // ❌ Agar premium bo‘lmasa — to‘lov chiqaramiz (Admin bundan mustasno)
+      const isAdmin = userService.isAdmin(chatId);
+      if (!user.isPremium && !isAdmin) {
         const payUrl = `${process.env.BASE_URL}/click/pay?userId=${user.telegramId}`;
 
         // Ensure session stays contextually relevant
