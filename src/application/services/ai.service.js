@@ -1,11 +1,18 @@
 const OpenAI = require('openai');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, 
-});
+
 
 exports.analyzeFeedback = async (moduleTitle, feedbackText) => {
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn("OpenAI API Key is missing. Skipping AI analysis.");
+      throw new Error("Missing OpenAI API Key");
+    }
+
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY, 
+    });
+
     const prompt = `
       Foydalanuvchi quyidagi modulni tugatdi: "${moduleTitle}".
       Foydalanuvchi fikri: "${feedbackText}".
@@ -31,11 +38,11 @@ exports.analyzeFeedback = async (moduleTitle, feedbackText) => {
 
     return JSON.parse(completion.choices[0].message.content);
   } catch (error) {
-    console.error("OpenAI Error:", error);
-    // Fallback if AI fails
+    console.error("OpenAI Service Error:", error.message);
+    // Fallback if AI fails or key is missing
     return {
       sentiment: "neutral",
-      analysis: "AI tahlil qila olmadi.",
+      analysis: "AI tahlil qila olmadi (Tizim xatosi yoki kalit yo'q).",
       reply: "Fikringiz uchun rahmat! Tez orada admin ko'rib chiqadi."
     };
   }
