@@ -14,25 +14,31 @@ exports.analyzeFeedback = async (moduleTitle, feedbackText) => {
     });
 
     const prompt = `
-      Foydalanuvchi quyidagi modulni tugatdi: "${moduleTitle}".
-      Foydalanuvchi fikri: "${feedbackText}".
+      Siz "Maqsad" loyihasining aqlli yordamchisisiz. Sizning vazifangiz o'quvchilarning modullar bo'yicha qoldirgan fikrlarini (feedback) tahlil qilishdir.
+
+      Foydalanuvchi ma'lumotlari:
+      - Modul: "${moduleTitle}"
+      - Fikr: "${feedbackText}"
       
-      Iltimos, ushbu fikrni tahlil qiling va quyidagilarni aniqlang:
-      1. Fikr ijobiymi yoki salbiymi?
-      2. Foydalanuvchi nimalarni o'rganganini aytib o'tdimi?
-      3. Qisqacha javob yozing (o'zbek tilida).
-      
-      Javobni quyidagi formatda json qilib bering:
+      Tahlil qiling va quyidagi JSON formatida javob qaytaring:
       {
         "sentiment": "positive" | "negative" | "neutral",
-        "analysis": "qisqacha tahlil",
-        "reply": "foydalanuvchiga javob"
+        "analysis": "Fikrning qisqacha va aniq tahlili (o'zbek tilida). Foydalanuvchi nimalarni o'rgangani yoki nimalardan noroziligi haqida.",
+        "reply": "Foydalanuvchiga yuboriladigan rag'batlantiruvchi va samimiy javob (o'zbek tilida). Agar fikr salbiy bo'lsa, muammoni hal qilishga tayyor ekanligingizni bildiring."
       }
+
+      Muhim: 
+      - Javob faqat va faqat JSON formatida bo'lishi shart.
+      - Ijobiy fikrlar uchun motivatsiya bering.
+      - Salbiy fikrlar uchun konstruktiv yondashing.
     `;
 
     const completion = await openai.chat.completions.create({
-      messages: [{ role: "system", content: "Sen o'qituvchi yordamchisisan." }, { role: "user", content: prompt }],
-      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: "Siz ta'lim platformasining professional o'zbek tili mutaxassisi va tahlilchisisiz. Javoblaringiz aniq, ravon va grammatik jihatdan to'g'ri bo'lishi kerak." },
+        { role: "user", content: prompt }
+      ],
+      model: "gpt-4o",
       response_format: { type: "json_object" },
     });
 

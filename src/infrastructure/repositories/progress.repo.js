@@ -23,14 +23,22 @@ exports.getLastCompletedModuleOrder = async (userId) => {
     user: userId, 
     status: { $in: ['completed', 'approved'] } 
   })
-  .populate('module', 'order')
-  .sort({ 'module.order': -1 })
-  .limit(1);
+  .populate('module', 'order');
 
-  if (!completedProgress.length || !completedProgress[0].module) {
-    return 0; // No modules completed
+  if (!completedProgress.length) {
+    return 0;
   }
-  return completedProgress[0].module.order;
+
+  // Filter out any progress where module might be null (deleted modules)
+  const validProgress = completedProgress.filter(p => p.module);
+
+  if (!validProgress.length) {
+    return 0;
+  }
+
+  // Find max order in JS
+  const maxOrder = Math.max(...validProgress.map(p => p.module.order));
+  return maxOrder;
 };
 
 exports.update = async (id, data) => {

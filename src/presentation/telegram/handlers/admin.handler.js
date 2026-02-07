@@ -31,24 +31,60 @@ module.exports = (bot) => {
 
       // ⭐️ Rate & Approve
       if (data.startsWith('rate_')) {
-          // Format: rate_high_ID, rate_medium_ID, rate_low_ID
           const parts = data.split('_'); 
           const rating = parts[1]; // high, medium, low
           const progressId = parts[2];
 
           try {
               // Approve with rating
-              // We need to update progress repository or service to support rating update
-              // For now assuming progressService.approveProgress can take options or we call repo directly.
-              // Let's call repo to update rating first, then approve.
-              
               await progressRepo.update(progressId, { rating });
               await progressService.approveProgress(progressId, "Admin rated: " + rating);
               
-              // Notify User
+              // Notify User & Refresh UI
               const progress = await progressRepo.getById(progressId);
               if (progress && progress.user) {
-                  await bot.sendMessage(progress.user.telegramId, `🎉 TABRIKLAYMIZ! Fikringiz qabul qilindi.\n⭐️ Baho: ${rating.toUpperCase()}\n\nKeyingi modul ochildi!`);
+                  const user = progress.user;
+                  // Send approval message
+                  await bot.sendMessage(user.telegramId, `🎉 TABRIKLAYMIZ! Fikringiz qabul qilindi.\n⭐️ Baho: ${rating.toUpperCase()}\n\nKeyingi modul ochildi!`);
+
+                  // REFRESH MODULE MENU
+                  // We need to determine if it was Free or Premium to show correct list
+                  // Usually we can check user.isPremium but better check the module type or just show what they have access to.
+                  // Defaulting to calculating based on user's status or the module's course type.
+                  // Let's assume user stays in same "mode".
+                  // We can fetch modules based on the module that was just completed.
+                  
+                  const courseType = progress.module.courseType || (user.isPremium ? 'premium' : 'free');
+                  const modules = await require('../../../application/services/course.service').getModulesForUser(user, courseType); // Dynamic require or move to top
+                  
+                  const keyboard = [];
+                  const newModuleMap = {}; // We can't update session here easily for the user without their chat ID context fully
+                  // Actually we can update their session if we access redis.
+                  // BUT sending keyboard is enough for them to click.
+                  // Wait, if they click, `user.handler` checks session.moduleMap. 
+                  // If we don't update session, the new button (e.g. "3 Modul") won't be in their session map!
+                  // CRITICAL: We MUST update user's session.
+                  
+                  modules.forEach((mod, index) => {
+                      const key = index + 1;
+                      newModuleMap[key] = mod._id;
+                      keyboard.push([`${key}️⃣ ${mod.title}`]);
+                  });
+                  keyboard.push(['⬅️ Orqaga']);
+
+                  // Update User Session
+                  const userSessionKey = `user_menu:${user.telegramId}`;
+                  const userSession = await sessionRepo.getSession(userSessionKey) || { step: 'MODULES' };
+                  userSession.moduleMap = newModuleMap;
+                  userSession.step = 'MODULES'; // Force them to modules view
+                  await sessionRepo.setSession(userSessionKey, userSession);
+
+                  await bot.sendMessage(user.telegramId, '🗂 Yangilangan modullar ro\'yxati:', {
+                      reply_markup: {
+                          keyboard,
+                          resize_keyboard: true
+                      }
+                  });
               }
 
               // Update Admin Message
@@ -177,7 +213,37 @@ ${statusIcon} <b>Status: ${p.status.toUpperCase()}</b>
           
           const progress = await progressRepo.getById(progressId);
           if (progress && progress.user) {
+              // Notify User & Refresh UI
               await bot.sendMessage(progress.user.telegramId, `🎉 TABRIKLAYMIZ! Fikringiz qabul qilindi.\n\nKeyingi modul ochildi!`);
+
+              const user = progress.user;
+              const courseType = progress.module.courseType || (user.isPremium ? 'premium' : 'free');
+              const modules = await require('../../../application/services/course.service').getModulesForUser(user, courseType); 
+              
+              const keyboard = [];
+              const newModuleMap = {};
+              
+              modules.forEach((mod, index) => {
+                  const key = index + 1;
+                  newModuleMap[key] = mod._id;
+                  keyboard.push([`${key}️⃣ ${mod.title}`]);
+              });
+              keyboard.push(['⬅️ Orqaga']);
+
+              // Update User Session
+              const userSessionKey = `user_menu:${user.telegramId}`;
+              const userSession = await sessionRepo.getSession(userSessionKey) || { step: 'MODULES' };
+              userSession.moduleMap = newModuleMap;
+               // If they are deep in feedback logic, maybe reset them to modules list so they can choose next one?
+              userSession.step = 'MODULES'; 
+              await sessionRepo.setSession(userSessionKey, userSession);
+
+              await bot.sendMessage(user.telegramId, '🗂 Yangilangan modullar ro\'yxati:', {
+                  reply_markup: {
+                      keyboard,
+                      resize_keyboard: true
+                  }
+              });
           }
 
           // Update Admin Message to show it's done (Optional: try to edit if we can find message id, but for regex command it's hard to reference the original message listing unless we passed it. 

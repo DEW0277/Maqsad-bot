@@ -346,7 +346,7 @@ To'lov qilib, darhol qo'shiling! 👇`,
     if (text === '📞 Yordam') {
         return bot.sendMessage(chatId, `📞 <b>Qo'llab-quvvatlash markazi:</b>
 
-Savollaringiz yoki muammolaringiz bo'lsa, @AdminUser ga murojaat qiling.
+Savollaringiz yoki muammolaringiz bo'lsa, @Assanheyacom ga murojaat qiling.
 Biz sizga yordam berishdan xursandmiz! 😊`, { parse_mode: 'HTML' });
     }
   });
